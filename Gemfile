@@ -1,0 +1,8 @@
+source 'https://rubygems.org'
+gem 'json'
+gem 'hashie'
+gem 'logger'
+gem 'filesize'
+gem 'fileutils'
+gem 'pp'
+gem 'video_transcoding'
