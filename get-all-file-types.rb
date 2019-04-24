@@ -1,10 +1,3 @@
-require 'json'
-require 'Hashie'
-require 'logger'
-require 'filesize'
-require 'fileutils'
-require 'pp'
-
 $extensions = []
 paths = ['/Volumes/storage/videos/']
 

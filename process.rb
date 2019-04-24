@@ -1,5 +1,4 @@
 require 'json'
-require 'Hashie'
 require 'logger'
 require 'filesize'
 require 'fileutils'
@@ -12,7 +11,7 @@ require 'pp'
 @logger = Logger.new('logs/process.log', 'daily')
 @total_space_reduction = 0
 
-@paths = ['/Volumes/storage/videos/tv.shows',
+@paths = ['/Volumes/storage/videos/tv.shows/',
          '/Volumes/storage/videos/movies']
 
 def get_files (path)

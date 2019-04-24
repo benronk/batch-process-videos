@@ -1,3 +1,11 @@
+require 'bundler/inline'
+
+gemfile do
+  source 'https://rubygems.org'
+  gem 'json', '~> 2.2'
+  gem 'hashie', '~> 3.6'
+end
+
 require 'json'
 require 'Hashie'
 # include Hashie::Extensions::SymbolizeKeys
