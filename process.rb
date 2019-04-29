@@ -53,11 +53,6 @@ def transcode_file(file)
     FileUtils.mkdir_p transcode_folder
   end
 
-  if !Dir.exist? deleteme_folder
-    @logger.info "creating: #{deleteme_folder}"
-    FileUtils.mkdir_p deleteme_folder
-  end
-
   # if this file is already a file in the processed folder it's probably incomplete so delete it so we can transcode it again
   if File.exist? transcode_file
     File.delete transcode_file
@@ -72,6 +67,12 @@ def transcode_file(file)
     finish = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     @total_space_reduction += Filesize.from(File.size(file).to_s + " b") - Filesize.from(File.size(transcode_file).to_s + " b")
     @logger.info "transcode finished - time: #{((finish - start)/60).ceil} minutes - smaller by: #{(Filesize.from(File.size(file).to_s + " b") - Filesize.from(File.size(transcode_file).to_s + " b")).pretty} - total space reduced: #{@total_space_reduction.pretty}"
+
+
+    if !Dir.exist? deleteme_folder
+      @logger.info "creating: #{deleteme_folder}"
+      FileUtils.mkdir_p deleteme_folder
+    end
 
     FileUtils.mv file, deleteme_file
   end
