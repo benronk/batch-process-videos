@@ -43,16 +43,13 @@ def transcode_file(file)
 
   start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-  process_tag = @PROCESS_FILES_INCLUDING_THIS.select { |n| File.basename(file).downcase.include? '.'+n.downcase+'.'}
-
+  process_tag = @PROCESS_FILES_INCLUDING_THIS.select { |n| File.basename(file).downcase.include? '.'+n.downcase+'.'} [0]
   transcoded_file = file.sub(process_tag, '')
   deleteme_file = transcoded_file.sub('videos', 'videos/processed')
   deleteme_folder = File.dirname(deleteme_file)
 
-  # if this file is already a file in the processed folder it's probably incomplete so delete it so we can transcode it again
-  if File.exist? transcoded_file
-    File.delete transcoded_file
-  end
+  # if this file is already a file in the processed folder assume it's incomplete. Delete it so we can transcode it again
+  File.delete transcoded_file if File.exist? transcoded_file
   
   if process_tag.include? '720'
     # %x(transcode-video --no-log --encoder vt_h264 --720 --target small --output "#{transcoded_file}" "#{file}")
