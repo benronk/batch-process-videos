@@ -67,6 +67,7 @@ def transcode_file(file)
     @total_space_reduction += Filesize.from(File.size(file).to_s + " b") - Filesize.from(File.size(transcoded_file).to_s + " b")
     @logger.info "transcode finished - time: #{((finish - start)/60).ceil} minutes - smaller by: #{(Filesize.from(File.size(file).to_s + " b") - Filesize.from(File.size(transcoded_file).to_s + " b")).pretty} - total space reduced: #{@total_space_reduction.pretty}"
 
+    p "Completed #{File.basename(file)} in #{((finish - start)/60).ceil} minutes, #{(Filesize.from(File.size(file).to_s + " b") - Filesize.from(File.size(transcoded_file).to_s + " b")).pretty} smaller"
 
     if !Dir.exist? deleteme_folder
       @logger.info "creating: #{deleteme_folder}"
