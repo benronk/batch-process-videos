@@ -5,13 +5,15 @@ require 'fileutils'
 require 'pp'
 
 @EXCLUDED_DIRS = ['/deal.with.these', '/raw', '/woodworking', '/paw patrol' '/wild.kratts', '/word world']
-@PROCESS_FILES_INCLUDING_THIS = ['processme', 'processme720']
+@PROCESS_FILES_INCLUDING_THIS = ['processme1080', 'processme720', 'processmehw1080', 'processmehw720']
 @VIDEO_EXTENSIONS = [".mkv", ".mp4", ".m4v", ".divx", ".mpg"]
 
 @logger = Logger.new('logs/process.log', 'daily')
 @total_space_reduction = 0
 
-@paths = ['/Users/bronk/dev/batch-process-videos/test_files',
+@paths = [
+          # '/Users/bronk/dev/batch-process-videos/test_files',
+          # '/Volumes/storage/videos/tests/'],
           '/Volumes/storage/videos/tv.shows/',
           '/Volumes/storage/videos/movies']
 
@@ -44,19 +46,23 @@ def transcode_file(file)
   start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
   process_tag = @PROCESS_FILES_INCLUDING_THIS.select { |n| File.basename(file).downcase.include? '.'+n.downcase+'.'} [0]
-  transcoded_file = file.sub(process_tag, '')
+
+  transcoded_file = file.sub('.'+process_tag, '')
   deleteme_file = transcoded_file.sub('videos', 'videos/processed')
   deleteme_folder = File.dirname(deleteme_file)
 
   # if this file is already a file in the processed folder assume it's incomplete. Delete it so we can transcode it again
   File.delete transcoded_file if File.exist? transcoded_file
   
-  if process_tag.include? '720'
-    # %x(transcode-video --no-log --encoder vt_h264 --720 --target small --output "#{transcoded_file}" "#{file}")
-    %x(transcode-video --no-log --720 --target small --output "#{transcoded_file}" "#{file}")
-  else
-    # %x(transcode-video --no-log --encoder vt_h264 --target small --output "#{transcoded_file}" "#{file}")
+  case process_tag
+  when 'processme1080'
     %x(transcode-video --no-log --target small --output "#{transcoded_file}" "#{file}")
+  when 'processme720'
+    %x(transcode-video --no-log --720p --target small --output "#{transcoded_file}" "#{file}")
+  when 'processmehw1080'
+    %x(transcode-video --no-log --encoder vt_h264 --target small --output "#{transcoded_file}" "#{file}")
+  when 'processmehw720'
+    %x(transcode-video --no-log --encoder vt_h264 --720p --target small --output "#{transcoded_file}" "#{file}")
   end
 
   if !File.exist? transcoded_file
@@ -64,10 +70,11 @@ def transcode_file(file)
     @logger.info "run this command to find out why it failed:: transcode-video -vv --no-log --encoder vt_h264 --target small --output #{transcoded_file} #{file}"
   else
     finish = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    @total_space_reduction += Filesize.from(File.size(file).to_s + " b") - Filesize.from(File.size(transcoded_file).to_s + " b")
-    @logger.info "transcode finished - time: #{((finish - start)/60).ceil} minutes - smaller by: #{(Filesize.from(File.size(file).to_s + " b") - Filesize.from(File.size(transcoded_file).to_s + " b")).pretty} - total space reduced: #{@total_space_reduction.pretty}"
+    smaller_by = Filesize.from(File.size(file).to_s + " b") - Filesize.from(File.size(transcoded_file).to_s + " b")
+    @total_space_reduction += smaller_by
+    @logger.info "transcode finished - time: #{((finish - start)/60).ceil} minutes - smaller by: #{smaller_by.pretty} - total space reduced: #{@total_space_reduction.pretty}"
 
-    p "Completed #{File.basename(file)} in #{((finish - start)/60).ceil} minutes, #{(Filesize.from(File.size(file).to_s + " b") - Filesize.from(File.size(transcoded_file).to_s + " b")).pretty} smaller"
+    p "Completed #{File.basename(file)} in #{((finish - start)/60).ceil} minutes, #{Filesize.from(File.size(transcoded_file).to_s + " b").pretty}, #{smaller_by.pretty} smaller"
 
     if !Dir.exist? deleteme_folder
       @logger.info "creating: #{deleteme_folder}"
