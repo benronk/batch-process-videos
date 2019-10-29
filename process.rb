@@ -118,49 +118,6 @@ class TranscodableFile
   end
 end
 
-def transcode_file(video)
-  deleteme_file = transcoded_file.sub('videos', 'videos/processed')
-  deleteme_folder = File.dirname(deleteme_file)
-
-  # if this file is already a file in the processed folder assume it's incomplete. Delete it so we can transcode it again
-  if File.exist? transcoded_file
-    $logger.info "transcoded file already exists. deleting file #{transcoded_file}"
-    # File.delete transcoded_file
-  end
-  
-  case video.process_tag
-  when 'processme1080'
-    %x(transcode-video --no-log --target small --output '#{transcoded_file}' '#{file}')
-  when 'processme720'
-    %x(transcode-video --no-log --720p --target small --output '#{transcoded_file}' '#{file}')
-  when 'processmehw1080'
-    %x(transcode-video --no-log --encoder vt_h264 --target small --output '#{transcoded_file}' '#{file}')
-  when 'processmehw720', 'processme'
-    # %x(transcode-video --no-log --encoder vt_h264 --720p --target small --output #{Shellwords.escape(transcoded_file)} #{Shellwords.escape(file)})
-    puts "escaped file 1 #{Shellwords.escape(transcoded_file)}"
-    puts "escaped file 2 #{Shellwords.escape(file)}"
-  end
-
-  if !File.exist? transcoded_file
-    $logger.info "failed transcode for some reason: #{file}"
-    $logger.info "run this command to find out why it failed:: transcode-video -vv --no-log --encoder vt_h264 --target small --output #{transcoded_file} #{file}"
-  else
-    finish = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    smaller_by = Filesize.from(File.size(file).to_s + " b") - Filesize.from(File.size(transcoded_file).to_s + " b")
-    $total_space_reduction += smaller_by
-    $logger.info "transcode finished - time: #{((finish - start)/60).ceil} minutes - smaller by: #{smaller_by.pretty} - total space reduced: #{$total_space_reduction.pretty}"
-
-    puts "Completed #{File.basename(file)} in #{((finish - start)/60).ceil} minutes, #{Filesize.from(File.size(transcoded_file).to_s + " b").pretty}, #{smaller_by.pretty} smaller"
-
-    if !Dir.exist? deleteme_folder
-      $logger.info "creating: #{deleteme_folder}"
-      FileUtils.mkdir_p deleteme_folder
-    end
-
-    FileUtils.mv file, deleteme_file
-  end
-end
-
 def process_files(files)
   i = files.count
   j = 0 # files processed
