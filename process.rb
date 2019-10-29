@@ -88,8 +88,6 @@ class TranscodableFile
     when 'processmehw1080'
       %x(transcode-video --no-log --encoder vt_h264 --target small --output '#{transcode_file}' '#{@base_file}')
     when 'processmehw720', 'processme'
-      puts "transcode file escaped: #{Shellwords.escape(transcode_file)}"
-      puts "base file escaped: #{Shellwords.escape(@base_file)}"
       %x(transcode-video --no-log --encoder vt_h264 --720p --target small --output #{Shellwords.escape(transcode_file)} #{Shellwords.escape(@base_file)})
     end
   end
@@ -124,13 +122,11 @@ def process_files(files)
   files.each do |file|
     video = TranscodableFile.new(file)
     if video.is_video
-      # transcode_file(video)
       video.transcode
     else
       $logger.info "skipping #{file} because file extension says it's not a video"
     end
 
-    # i = i - 1
     j = j + 1
     $logger.info "#{j} files processed, #{i - j} files left"
   end
