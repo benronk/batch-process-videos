@@ -21,6 +21,7 @@ end
   $logger.info "START path: #{path}"
   if Dir.exist?(path)
     files = get_files(path)
+    i = 0
     $logger.info "#{files.count} files to rename"
     # $logger.info "#{files.pretty_inspect}"
     files.each do |file|
@@ -28,8 +29,11 @@ end
       new_name = file.sub('.ts', '.processme.ts')
       $logger.info "to this: #{new_name}"
       FileUtils.mv file, new_name
-      # return
+      
+      i = i + 1
     end
+
+    puts "#{i} .ts files renamed in #{path}"
   else
     $logger.error "path is not a dir: #{path}"
   end
