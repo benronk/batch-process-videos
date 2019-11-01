@@ -48,7 +48,7 @@ class TranscodableFile
     @base_file.sub('.'+process_tag, '').sub(File.extname(@base_file), '.mkv')
   end
 
-  # Remove the process tag change path to videos/processed
+  # Remove the process tag and change path to videos/processed
   def moveto_file
     @base_file.sub('.'+process_tag, '').sub('videos', 'videos/processed')
   end
@@ -62,8 +62,8 @@ class TranscodableFile
     transcode_video
 
     if !File.exist? transcode_file
-      $logger.info "failed transcode for some reason: #{@base_file}"
-      $logger.info "run this command to find out why it failed:: transcode-video -vv --no-log --encoder vt_h264 --target small --output #{transcode_file} #{@base_file}"
+      $logger.error "failed transcode for some reason: #{@base_file}"
+      $logger.error "run this command to find out why it failed:: transcode-video -vv --no-log --encoder vt_h264 --target small --output #{transcode_file} #{@base_file}"
     else
       finish = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       start_size = Filesize.from(File.size(@base_file).to_s + " b")
@@ -128,7 +128,11 @@ def process_files(files)
     end
 
     j = j + 1
+
+    avg_space_saved = $total_space_reduction / j
+    # $logger.info "#{j} files processed, #{i - j} files left, #{Filesize.from(((i - j) * avg_space_saved).to_s + " b").pretty} estimated space to save"
     $logger.info "#{j} files processed, #{i - j} files left"
+    
   end
 end
 
