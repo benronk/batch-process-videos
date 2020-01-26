@@ -5,30 +5,33 @@
 
 Batch process video files and transcode them smaller.
 
-I've been using [Don Melton's transcode-video](https://github.com/donmelton/video_transcoding) scripts to transcode my video library for awhile now, but what I really wanted was a simple way to batch transcode multiple files. This script does that.
+I've been using [Don Melton's transcode-video](https://github.com/donmelton/video_transcoding) scripts to transcode my video library for awhile now but what I really wanted was a simple way to batch transcode multiple files. This script does that.
 
-Simply put the video files or the folders containing the video files into a folder named `processme` and the script will pick them up and transcode them. The origional file is moved to a `processed` folder incase something goes awry. The transcoded file is created in the origional file's path, minus the `processme` folder.
+Rename the files to be transcoded with a process tag. Add it at the end of the filename before the file extension with a `.`. So `filename.process-tag.extension`. 
 
-So a file in this processme folder: 
-`/Volumes/storage/videos/movies/processme/The Best Movie Evar.mkv` 
-will have its transcoded file created here: 
-`/Volumes/storage/videos/movies/The Best Movie Evar.mkv` 
+Example:
+If you want to transcode this file:
+`/videos/movies/The Best Movie Evar.mkv`
+rename it accordingly: 
+`/videos/movies/The Best Movie Evar.processme.mkv`
+^ That renamed file will be transcoded. The transcoded file will be saved as `/videos/movies/The Best Movie Evar.mkv` (the same place, same name as the origional). The origional file has the process-tag removed and moved to `/videos/processed/movies/The Best Movie Evar.mkv`.
 
-OR 
-`/Volumes/storage/videos/tv.shows/Big.Bang.Theory/processme/Season.09/Big.Bang.Theory.S09.E01.mkv` 
-will be transcoded and created here: 
-`/Volumes/storage/videos/tv.shows/Big.Bang.Theory/Season.09/Big.Bang.Theory.S09.E01.mkv` 
+Valid process tags:
 
-So 'queueing' up a single file, an entire season of shows, or an entire show and all of its seasons simply requires putting those files/folders inside a `processme` folder.
+* processme - choose the default encode, currently processmehw720
+* processme1080 - use transcode-video's default settings at 1080p
+* processme720 - use transcode-video's default settings at 720p
+* processmehw1080 - use your computers hardware encoding (if available) at 1080p
+* processmehw720 - use your computers hardware encoding (if available) at 720p
 
 ## get-video-properties
 
 Will return a video file's video properties. 
 
-`ruby get-video-properties.rb /Volumes/storage/videos/movies/The Best Movie Evar.mkv` will return something like:
+`ruby get-video-properties.rb /videos/movies/The Best Movie Evar.mkv` will return something like:
 
 ``` json
-/Volumes/storage/videos/movies/The Best Movie Evar.mkv => [
+/videos/movies/The Best Movie Evar.mkv => [
   {
     "codec_type": "video",
     "codec_name": "h264",
@@ -45,3 +48,7 @@ My origional plan was to use this information to determine how to transcode a fi
 
 Returns all of the file types in the target path (hardcoded in the script). Output looks like:
 `extensions: [".mkv", ".mp4", ".jpg", ".srt", ".avi", ".txt", ".m4v", ".part", ".3gp", ".BUP", ".IFO", ".VOB", ".json", ".xml", ".ISO", ".divx", ".rar", ".mpg", ".mp3", ".docx"]`
+
+## move-em-all
+
+Moves files from one place to another. I used this once for something. It's kinda pointless but i wanted it to stick around if I ever used it again.
