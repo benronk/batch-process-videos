@@ -10,19 +10,24 @@ I've been using [Don Melton's transcode-video](https://github.com/donmelton/vide
 Rename the files to be transcoded with a process tag. Add it at the end of the filename before the file extension with a `.`. So `filename.process-tag.extension`. 
 
 Example:
+
 If you want to transcode this file:
+
 `/videos/movies/The Best Movie Evar.mkv`
+
 rename it accordingly: 
+
 `/videos/movies/The Best Movie Evar.processme.mkv`
+
 ^ That renamed file will be transcoded. The transcoded file will be saved as `/videos/movies/The Best Movie Evar.mkv` (the same place, same name as the origional). The origional file has the process-tag removed and moved to `/videos/processed/movies/The Best Movie Evar.mkv`.
 
 Valid process tags:
 
-* processme - choose the default encode, currently processmehw720
-* processme1080 - use transcode-video's default settings at 1080p
-* processme720 - use transcode-video's default settings at 720p
-* processmehw1080 - use your computers hardware encoding (if available) at 1080p
-* processmehw720 - use your computers hardware encoding (if available) at 720p
+* `processme` - choose the default encode, currently processmehw720
+* `processme1080` - use transcode-video's default settings at 1080p
+* `processme720` - use transcode-video's default settings at 720p
+* `processmehw1080` - use your computers hardware encoding (if available) at 1080p
+* `processmehw720` - use your computers hardware encoding (if available) at 720p
 
 ## get-video-properties
 
