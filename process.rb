@@ -13,11 +13,9 @@ $logger = Logger.new('logs/process.log', 'daily')
 $total_space_reduction = 0
 
 @paths = [
-          # '/Users/bronk/dev/batch-process-videos/test_files',
-          # '/Volumes/storage/videos/tests/'],
+          '/Volumes/storage/videos/sports',
           '/Volumes/storage/videos/movies',
-          '/Volumes/storage/videos/tv.shows/',
-          '/Volumes/storage/videos/sports'
+          '/Volumes/storage/videos/tv.shows/'
         ]
 
 def get_files (path)
