@@ -4,6 +4,7 @@ require 'filesize'
 require 'fileutils'
 require 'pp'
 
+FileUtils.mkdir_p 'logs'
 $logger = Logger.new('logs/rename-ts.log', 'daily')
 @paths = [
   '/Volumes/storage/videos/tv.shows/',

@@ -9,6 +9,7 @@ $EXCLUDED_DIRS = ['/deal.with.these', '/raw', '/woodworking', '/paw patrol', '/w
 $PROCESS_FILE_TAGS = ['processme', 'processme1080', 'processme720', 'processmehw1080', 'processmehw720'].freeze
 $VIDEO_EXTENSIONS = ['.mkv', '.mp4', '.m4v', '.divx', '.mpg', '.ts'].freeze
 
+FileUtils.mkdir_p 'logs'
 $logger = Logger.new('logs/process.log', 'daily')
 $total_space_reduction = 0
 
