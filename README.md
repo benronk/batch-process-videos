@@ -1,5 +1,12 @@
 # batch-process-videos
 
+## Installation
+
+    brew install handbrake
+    brew install ffmpeg
+    brew install mkvtoolnix
+    brew install mp4v2
+    bundle install
 
 ## process.rb
 
