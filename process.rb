@@ -81,13 +81,13 @@ class TranscodableFile
   def transcode_video
     case process_tag
     when 'processme1080'
-      %x(transcode-video --no-log --target small --output '#{Shellwords.escape(transcode_file)}' '#{Shellwords.escape(@base_file)}')
+      system("transcode-video --no-log --target small --output '#{Shellwords.escape(transcode_file)}' '#{Shellwords.escape(@base_file)}'")
     when 'processme720'
-      %x(transcode-video --no-log --720p --target small --output '#{Shellwords.escape(transcode_file)}' '#{Shellwords.escape(@base_file)}')
+      system("transcode-video --no-log --720p --target small --output '#{Shellwords.escape(transcode_file)}' '#{Shellwords.escape(@base_file)}'")
     when 'processmehw1080'
-      %x(transcode-video --no-log --encoder vt_h264 --target small --output '#{Shellwords.escape(transcode_file)}' '#{Shellwords.escape(@base_file)}')
+      system("transcode-video --no-log --encoder vt_h264 --target small --output '#{Shellwords.escape(transcode_file)}' '#{Shellwords.escape(@base_file)}'")
     when 'processmehw720', 'processme'
-      %x(transcode-video --no-log --encoder vt_h264 --720p --target small --output #{Shellwords.escape(transcode_file)} #{Shellwords.escape(@base_file)})
+      system("transcode-video --no-log --encoder vt_h264 --720p --target small --output #{Shellwords.escape(transcode_file)} #{Shellwords.escape(@base_file)}")
     end
   end
 
