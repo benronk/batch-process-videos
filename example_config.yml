@@ -2,13 +2,18 @@ squish_paths:
   - '/Volumes/storage/videos/sports'
   - '/Volumes/storage/videos/movies'
   - '/Volumes/storage/videos/tv.shows/'
+rename_ts_paths:
+  - '/Volumes/storage/videos/tv.shows/'
+  - '/Volumes/storage/videos/sports'
+log_loc: "logs"
+processed_loc: "processed"
 excluded_dirs:
-  - '/deal.with.these'
-  - '/raw'
-  - '/woodworking'
-  - '/paw patrol'
-  - '/wild.kratts'
-  - '/word world'
+  - 'deal.with.these'
+  - 'raw'
+  - 'woodworking'
+  - 'paw patrol'
+  - 'wild.kratts'
+  - 'word world'
 video_extensions:
   - '.mkv'
   - '.mp4'

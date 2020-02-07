@@ -12,21 +12,22 @@ require 'pry'
 $PROCESS_FILE_TAGS = ['processme', 'processme1080', 'processme720', 'processmehw1080', 'processmehw720'].freeze
 $config = YAML.load_file("config.yml")
 
-FileUtils.mkdir_p 'logs'
-$logger = Logger.new('logs/process.log', 'daily')
+FileUtils.mkdir_p($config["log_loc"])
+$logger = Logger.new(File.join($config["log_loc"], "process.log"), 'daily')
 
 $total_space_reduction = 0
 
 def get_files (path)
   Dir[ File.join(path, '**', '*') ]
     .reject { |f| File.directory? f}
-    .reject { |f| $config["excluded_dirs"].any? { |p| File.dirname(f).downcase.include? p.downcase } }
+    .reject { |f| ($config["excluded_dirs"] || []).any? { |p| File.dirname(f).downcase.include? p.downcase } }
     .select { |f| $PROCESS_FILE_TAGS.any? { |p| File.basename(f).downcase.include? p.downcase } }
 end
 
 class TranscodableFile
-  def initialize(file)
+  def initialize(file, path)
     @base_file = file
+    @base_path = path
 
     # TODO if !File.file?(@base_file) raise stink
   end
@@ -47,7 +48,9 @@ class TranscodableFile
 
   # Remove the process tag and change path to videos/processed
   def moveto_file
-    @base_file.sub('.'+process_tag, '').sub('videos', 'videos/processed')
+    last_dir_in_path = Pathname(@base_path).each_filename.to_a.last
+    file_wo_path = @base_file.sub('.'+process_tag, '').sub(@base_path, '')
+    File.join($config["processed_loc"], last_dir_in_path, file_wo_path)
   end
 
   def transcode
@@ -102,12 +105,7 @@ class TranscodableFile
       return
     end
 
-    folder = File.dirname(moveto_file)
-
-    if !Dir.exist? folder
-      $logger.info "move to folder doesn't exist, creating: #{folder}"
-      FileUtils.mkdir_p folder
-    end
+    FileUtils.mkdir_p(File.dirname(moveto_file))
 
     $logger.info "moving #{@base_file} -> #{moveto_file}"
     FileUtils.mv @base_file, moveto_file
@@ -122,7 +120,7 @@ def squish_path(path)
   i = files.count
   j = 0 # files processed
   files.each do |file|
-    video = TranscodableFile.new(file)
+    video = TranscodableFile.new(file, path)
     if video.is_video
       video.transcode
     else

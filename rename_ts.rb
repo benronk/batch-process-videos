@@ -3,13 +3,13 @@ require 'logger'
 require 'filesize'
 require 'fileutils'
 require 'pp'
+require 'yaml'
+require 'pry'
 
-FileUtils.mkdir_p 'logs'
-$logger = Logger.new('logs/rename-ts.log', 'daily')
-@paths = [
-  '/Volumes/storage/videos/tv.shows/',
-  '/Volumes/storage/videos/sports'
-]
+FileUtils.mkdir_p($config["log_loc"])
+$logger = Logger.new(File.join($config["log_loc"], "rename-ts.log"), 'daily')
+
+@paths = $config["rename_ts_paths"]
 
 def get_files (path)
   Dir[ File.join(path, '**', '*') ]
