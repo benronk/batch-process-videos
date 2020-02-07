@@ -6,25 +6,21 @@ require 'filesize'
 require 'fileutils'
 require 'pp'
 require 'shellwords'
+require 'yaml'
+require 'pry'
 
-$EXCLUDED_DIRS = ['/deal.with.these', '/raw', '/woodworking', '/paw patrol', '/wild.kratts', '/word world'].freeze
 $PROCESS_FILE_TAGS = ['processme', 'processme1080', 'processme720', 'processmehw1080', 'processmehw720'].freeze
-$VIDEO_EXTENSIONS = ['.mkv', '.mp4', '.m4v', '.divx', '.mpg', '.ts'].freeze
+$config = YAML.load_file("config.yml")
 
 FileUtils.mkdir_p 'logs'
 $logger = Logger.new('logs/process.log', 'daily')
-$total_space_reduction = 0
 
-@paths = [
-          '/Volumes/storage/videos/sports',
-          '/Volumes/storage/videos/movies',
-          '/Volumes/storage/videos/tv.shows/'
-        ]
+$total_space_reduction = 0
 
 def get_files (path)
   Dir[ File.join(path, '**', '*') ]
     .reject { |f| File.directory? f}
-    .reject { |f| $EXCLUDED_DIRS.any? { |p| File.dirname(f).downcase.include? p.downcase } }
+    .reject { |f| $config["excluded_dirs"].any? { |p| File.dirname(f).downcase.include? p.downcase } }
     .select { |f| $PROCESS_FILE_TAGS.any? { |p| File.basename(f).downcase.include? p.downcase } }
 end
 
@@ -36,7 +32,7 @@ class TranscodableFile
   end
 
   def is_video
-    File.file?(@base_file) && $VIDEO_EXTENSIONS.include?(File.extname(@base_file))
+    File.file?(@base_file) && $config["video_extensions"].include?(File.extname(@base_file))
   end
 
   def process_tag
@@ -113,11 +109,16 @@ class TranscodableFile
       FileUtils.mkdir_p folder
     end
 
+    $logger.info "moving #{@base_file} -> #{moveto_file}"
     FileUtils.mv @base_file, moveto_file
   end
 end
 
-def process_files(files)
+def squish_path(path)
+  files = get_files(path)
+  $logger.info "#{files.count} files to process"
+  $logger.info "#{files.pretty_inspect}"
+
   i = files.count
   j = 0 # files processed
   files.each do |file|
@@ -132,7 +133,7 @@ def process_files(files)
 
     avg_space_saved = $total_space_reduction / j
     # $logger.info "#{j} files processed, #{i - j} files left, #{Filesize.from(((i - j) * avg_space_saved).to_s + " b").pretty} estimated space to save"
-    $logger.info "#{j} files processed, #{i - j} files left"
+    $logger.info "#{j} files processed, #{i - j} files left -> total space reduction: #{$total_space_reduction.pretty}"
     
   end
 end
@@ -140,15 +141,11 @@ end
 #
 # start
 #
-
-@paths.each do |path|
+$config["squish_paths"].each do |path|
   $logger.info "START path: #{path}"
   p "#{path}"
   if Dir.exist?(path)
-    files = get_files(path)
-    $logger.info "#{files.count} files to process"
-    $logger.info "#{files.pretty_inspect}"
-    process_files files
+    squish_path(path)
   else
     $logger.error "path is not a dir: #{path}"
   end

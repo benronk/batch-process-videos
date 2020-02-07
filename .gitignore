@@ -57,3 +57,4 @@ build-iPhoneSimulator/
 # ignore my logs
 /logs/
 *.log*
+config.yml
