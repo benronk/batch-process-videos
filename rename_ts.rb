@@ -8,6 +8,7 @@ require 'pp'
 require 'yaml'
 require 'pry'
 
+$config = YAML.load_file("config.yml")
 FileUtils.mkdir_p($config["log_loc"])
 $logger = Logger.new(File.join($config["log_loc"], "rename-ts.log"), 'daily')
 
