@@ -40,34 +40,40 @@ class TranscodableFile
     $PROCESS_FILE_TAGS.select { |n| File.basename(@base_file).downcase.include? '.'+n.downcase+'.'} [0]
   end
 
+  # return the name of the file while being worked
+  def working_file
+    File.join($config["processed_loc"], File.basename(@base_file).sub('.'+process_tag, '').sub(File.extname(@base_file), '.mkv'))
+  end
+
   # Return the name of the future transcoded file. 
   # So an mkv minus the process_tag
-  def transcode_file
+  def destination_file
     @base_file.sub('.'+process_tag, '').sub(File.extname(@base_file), '.mkv')
   end
 
   # Remove the process tag and change path to videos/processed
-  def moveto_file
+  def processed_file
     last_dir_in_path = Pathname(@base_path).each_filename.to_a.last
     file_wo_path = @base_file.sub('.'+process_tag, '').sub(@base_path, '')
     File.join($config["processed_loc"], last_dir_in_path, file_wo_path)
   end
 
   def transcode
+    $logger.info "*"*80
     $logger.info "transcode start: #{File.basename(@base_file)}"
     start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-    delete_transcode_file
+    delete_working_file
 
     transcode_video
 
-    if !File.exist? transcode_file
+    if !File.exist? working_file
       $logger.error "failed transcode for some reason: #{@base_file}"
-      $logger.error "run this command to find out why it failed:: transcode-video -vv --no-log --encoder vt_h264 --target small --output #{transcode_file} #{@base_file}"
+      $logger.error "run this command to find out why it failed:: transcode-video -vv --no-log --encoder vt_h264 --target small --output #{working_file} #{@base_file}"
     else
       finish = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       start_size = Filesize.from(File.size(@base_file).to_s + " b")
-      finish_size = Filesize.from(File.size(transcode_file).to_s + " b")
+      finish_size = Filesize.from(File.size(working_file).to_s + " b")
       smaller_by = start_size - finish_size
       elapsed_minutes = ((finish - start)/60).ceil
       $total_space_reduction += smaller_by
@@ -80,35 +86,42 @@ class TranscodableFile
   end
 
   def transcode_video
+    source = Shellwords.escape(@base_file)
+    destination = Shellwords.escape(working_file)
+    FileUtils.mkdir_p(File.dirname(working_file))
     case process_tag
     when 'processme1080'
-      system("transcode-video --no-log --target small --output '#{Shellwords.escape(transcode_file)}' '#{Shellwords.escape(@base_file)}'")
+      system("transcode-video --no-log --target small --output '#{destination}' '#{source}'")
     when 'processme720'
-      system("transcode-video --no-log --720p --target small --output '#{Shellwords.escape(transcode_file)}' '#{Shellwords.escape(@base_file)}'")
+      system("transcode-video --no-log --720p --target small --output '#{destination}' '#{source}'")
     when 'processmehw1080'
-      system("transcode-video --no-log --encoder vt_h264 --target small --output '#{Shellwords.escape(transcode_file)}' '#{Shellwords.escape(@base_file)}'")
+      system("transcode-video --no-log --encoder vt_h264 --target small --output '#{destination}' '#{source}'")
     when 'processmehw720', 'processme'
-      system("transcode-video --no-log --encoder vt_h264 --720p --target small --output #{Shellwords.escape(transcode_file)} #{Shellwords.escape(@base_file)}")
+      system("transcode-video --no-log --encoder vt_h264 --720p --target small --output #{destination} #{source}")
     end
   end
 
-  def delete_transcode_file
-    if File.exist? transcode_file
-      $logger.info "transcode file already exists. deleting file #{transcode_file}"
-      File.delete transcode_file
+  def delete_working_file
+    if File.exist? working_file
+      $logger.info "working file already exists. deleting file #{working_file}"
+      File.delete working_file
     end
   end
 
   def move_base_file
-    if !File.exist? transcode_file
+    # move working_file -> destination_file
+    if !File.exist? working_file
       $logger.info "no moving, transcode didn't complete"
       return
     end
+    $logger.info "moving #{working_file} -> #{destination_file}"
+    FileUtils.mv working_file, destination_file
 
-    FileUtils.mkdir_p(File.dirname(moveto_file))
 
-    $logger.info "moving #{@base_file} -> #{moveto_file}"
-    FileUtils.mv @base_file, moveto_file
+    # move base_file -> processed_file
+    $logger.info "moving #{@base_file} -> #{processed_file}"
+    FileUtils.mkdir_p(File.dirname(processed_file))
+    FileUtils.mv @base_file, processed_file
   end
 end
 
