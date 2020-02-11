@@ -117,6 +117,8 @@ class TranscodableFile
     $logger.info "moving #{working_file} -> #{destination_file}"
     FileUtils.mv working_file, destination_file
 
+    # give plex time to see the new file as a duplicate
+    sleep(15)
 
     # move base_file -> processed_file
     $logger.info "moving #{@base_file} -> #{processed_file}"
