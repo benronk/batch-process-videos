@@ -54,6 +54,7 @@ class TranscodableFile
   end
 
   def transcode
+    $logger.info "*"*80
     $logger.info "transcode start: #{File.basename(@base_file)}"
     start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
