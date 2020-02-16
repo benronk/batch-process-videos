@@ -32,7 +32,7 @@ class TranscodableFile
     # TODO if !File.file?(@origional_file) raise stink
   end
 
-  def is_video
+  def video?
     File.file?(@origional_file) && $config["video_extensions"].include?(File.extname(@origional_file))
   end
 
@@ -63,8 +63,6 @@ class TranscodableFile
     $logger.info "*"*80
     $logger.info "transcode start: #{File.basename(@origional_file)}"
     start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-
-    delete_temp_file
 
     transcode_video
 
@@ -102,6 +100,29 @@ class TranscodableFile
     end
   end
 
+  # see if temp file exists
+  # if it's changing size then skip this video as another process is doing the same thing
+  # otherwise assume it's left over and delete it
+  def already_being_processed?
+    if File.exist? temp_file
+      check1_size = File.size(temp_file)
+      $logger.info "  waiting to see if temp file is in use"
+      sleep(10)
+      check2_size = File.size(temp_file)
+
+      if check2_size > check1_size
+        true
+      else
+        $logger.info "temp file already exists, deleting #{temp_file}"
+        File.delete temp_file
+        false
+      end
+
+      # need to also look for finished file; if there then delete origional; maybe if age is > 1d?
+    else
+      false
+    end
+  end
   def delete_temp_file
     if File.exist? temp_file
       $logger.info "temp file already exists, deleting #{temp_file}"
@@ -137,8 +158,12 @@ def squish_path(path)
   previous_video = nil
   files.each do |file|
     video = TranscodableFile.new(file, path)
-    if video.is_video
-      video.transcode
+    if video.video?
+      if !video.already_being_processed?
+        video.transcode
+      else
+        $logger.info "skipping #{file} because it's being worked by another process"  
+      end
     else
       $logger.info "skipping #{file} because file extension says it's not a video"
     end
