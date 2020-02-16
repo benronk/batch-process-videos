@@ -82,7 +82,7 @@ class TranscodableFile
       $logger.info "transcode finished - time: #{elapsed_minutes} minutes - #{start_size.pretty} -> #{finish_size.pretty} - smaller by: #{smaller_by.pretty} - total space reduced: #{$total_space_reduction.pretty}"
       puts "Completed #{File.basename(@origional_file)} in #{elapsed_minutes} minutes, #{finish_size.pretty}, #{smaller_by.pretty} smaller"
   
-      move_origional_file
+      move_temp_to_destination
     end
   end
 
@@ -104,25 +104,24 @@ class TranscodableFile
 
   def delete_temp_file
     if File.exist? temp_file
-      $logger.info "working file already exists. deleting file #{temp_file}"
+      $logger.info "temp file already exists, deleting #{temp_file}"
       File.delete temp_file
     end
   end
 
-  def move_origional_file
-    # move temp_file -> destination_file
+  # move temp_file -> destination_file
+  def move_temp_to_destination
     if !File.exist? temp_file
       $logger.info "no moving, transcode didn't complete"
       return
     end
-    $logger.info "moving #{temp_file} -> #{destination_file}"
+    $logger.info "moving\n  #{temp_file} ->\n  #{destination_file}"
     FileUtils.mv temp_file, destination_file
+  end
 
-    # give plex time to see the new file as a duplicate
-    sleep(15)
-
-    # move origional_file -> processed_file
-    $logger.info "moving #{@origional_file} -> #{processed_file}"
+  # move origional_file -> processed_file
+  def move_origional_file
+    $logger.info "moving\n  #{@origional_file} ->\n  #{processed_file}"
     FileUtils.mkdir_p(File.dirname(processed_file))
     FileUtils.mv @origional_file, processed_file
   end
@@ -135,6 +134,7 @@ def squish_path(path)
 
   total_files = files.count
   files_processed = 0
+  previous_video = nil
   files.each do |file|
     video = TranscodableFile.new(file, path)
     if video.is_video
@@ -143,6 +143,8 @@ def squish_path(path)
       $logger.info "skipping #{file} because file extension says it's not a video"
     end
 
+    previous_video.move_origional_file if previous_video
+    previous_video = video
 
     files_processed = files_processed + 1
 
@@ -150,6 +152,13 @@ def squish_path(path)
     # $logger.info "#{files_processed} files processed, #{total_files - files_processed} files left, #{Filesize.from(((total_files - files_processed) * avg_space_saved).to_s + " b").pretty} estimated space to save"
     $logger.info "#{files_processed} files processed, #{total_files - files_processed} files left -> total space reduction: #{$total_space_reduction.pretty}"
     
+  end
+
+  if previous_video
+    # logger waiting for Plex to pickup last new file
+    $logger.info "Waiting 30s for Plex to pickup new file"
+    sleep(30)
+    previous_video.move_origional_file 
   end
 end
 
