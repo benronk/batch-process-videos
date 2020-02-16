@@ -36,6 +36,11 @@ class TranscodableFile
     File.file?(@origional_file) && $config["video_extensions"].include?(File.extname(@origional_file))
   end
 
+  def recently_modified?(file, seconds_ago=30)
+    modified_seconds_ago = Time.now - File.stat(file).mtime
+    modified_seconds_ago < seconds_ago
+  end
+
   def process_tag
     $PROCESS_FILE_TAGS.select { |n| File.basename(@origional_file).downcase.include? '.'+n.downcase+'.'} [0]
   end
@@ -103,20 +108,17 @@ class TranscodableFile
   # if it's changing size then skip this video as another process is doing the same thing
   # otherwise assume it's left over and delete it
   def already_being_processed?
-    # if origional and destination file exist 
-    # assume a previous run didn't around to cleaning up the file
-    if(File.exist?(@origional_file) && File.exist?(destination_file))
-      $logger.info "Found origional and transcoded file; previous run didn't fully complete"
+    # if origional exists and destination has existed for 30s+
+    # assume a previous run didn't get around to cleaning up the file
+    if(File.exist?(@origional_file) && File.exist?(destination_file) && !recently_modified?(destination_file))
+      $logger.info "Found origional and transcoded file; moving origional"
       move_origional_file
       return true
     end
 
     if File.exist? temp_file
-      $logger.info "  checking to see if temp file is currently in use"
-      modified_seconds_ago = Time.now - File.stat(temp_file).mtime
-
       # if file has been modified in the last 30 seconds consider it in flight by another
-      if modified_seconds_ago < 30
+      if recently_modified?(temp_file)
         $logger.info "  temp file modified recently (maybe by another process?) so skipping #{temp_file}"
         return true
       else
@@ -126,6 +128,7 @@ class TranscodableFile
     end
     false
   end
+
   def delete_temp_file
     if File.exist? temp_file
       $logger.info "  temp file already exists, deleting #{temp_file}"
@@ -145,9 +148,11 @@ class TranscodableFile
 
   # move origional_file -> processed_file
   def move_origional_file
-    $logger.info "  moving (orig->processed)\n  #{@origional_file} ->\n  #{processed_file}"
-    FileUtils.mkdir_p(File.dirname(processed_file))
-    FileUtils.mv @origional_file, processed_file
+    if File.exist? @origional_file
+      $logger.info "  moving previous (orig->processed)\n  #{@origional_file} ->\n  #{processed_file}"
+      FileUtils.mkdir_p(File.dirname(processed_file))
+      FileUtils.mv @origional_file, processed_file
+    end
   end
 end
 
