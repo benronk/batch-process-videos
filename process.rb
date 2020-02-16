@@ -15,7 +15,7 @@ $config = YAML.load_file("config.yml")
 FileUtils.mkdir_p($config["log_loc"])
 $logger = Logger.new(File.join($config["log_loc"], "process.log"), 'daily')
 
-$total_space_reduction = 0
+$total_space_reduction = Filesize.from("0")
 
 def get_files (path)
   Dir[ File.join(path, '**', '*') ]
@@ -60,7 +60,6 @@ class TranscodableFile
   end
 
   def transcode
-    $logger.info "*"*80
     $logger.info "transcode start: #{File.basename(@origional_file)}"
     start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
@@ -77,10 +76,10 @@ class TranscodableFile
       elapsed_minutes = ((finish - start)/60).ceil
       $total_space_reduction += smaller_by
 
+      move_temp_to_destination
       $logger.info "transcode finished - time: #{elapsed_minutes} minutes - #{start_size.pretty} -> #{finish_size.pretty} - smaller by: #{smaller_by.pretty} - total space reduced: #{$total_space_reduction.pretty}"
       puts "Completed #{File.basename(@origional_file)} in #{elapsed_minutes} minutes, #{finish_size.pretty}, #{smaller_by.pretty} smaller"
   
-      move_temp_to_destination
     end
   end
 
@@ -104,28 +103,32 @@ class TranscodableFile
   # if it's changing size then skip this video as another process is doing the same thing
   # otherwise assume it's left over and delete it
   def already_being_processed?
-    if File.exist? temp_file
-      check1_size = File.size(temp_file)
-      $logger.info "  waiting to see if temp file is in use"
-      sleep(10)
-      check2_size = File.size(temp_file)
-
-      if check2_size > check1_size
-        true
-      else
-        $logger.info "temp file already exists, deleting #{temp_file}"
-        File.delete temp_file
-        false
-      end
-
-      # need to also look for finished file; if there then delete origional; maybe if age is > 1d?
-    else
-      false
+    # if origional and destination file exist 
+    # assume a previous run didn't around to cleaning up the file
+    if(File.exist?(@origional_file) && File.exist?(destination_file))
+      $logger.info "Found origional and transcoded file; previous run didn't fully complete"
+      move_origional_file
+      return true
     end
+
+    if File.exist? temp_file
+      $logger.info "  checking to see if temp file is currently in use"
+      modified_seconds_ago = Time.now - File.stat(temp_file).mtime
+
+      # if file has been modified in the last 30 seconds consider it in flight by another
+      if modified_seconds_ago < 30
+        $logger.info "  temp file modified recently (maybe by another process?) so skipping #{temp_file}"
+        return true
+      else
+        $logger.info "  temp file is old, deleting #{temp_file}"
+        File.delete temp_file
+      end
+    end
+    false
   end
   def delete_temp_file
     if File.exist? temp_file
-      $logger.info "temp file already exists, deleting #{temp_file}"
+      $logger.info "  temp file already exists, deleting #{temp_file}"
       File.delete temp_file
     end
   end
@@ -136,13 +139,13 @@ class TranscodableFile
       $logger.info "no moving, transcode didn't complete"
       return
     end
-    $logger.info "moving\n  #{temp_file} ->\n  #{destination_file}"
+    $logger.info "  moving (temp->destination)\n  #{temp_file} ->\n  #{destination_file}"
     FileUtils.mv temp_file, destination_file
   end
 
   # move origional_file -> processed_file
   def move_origional_file
-    $logger.info "moving\n  #{@origional_file} ->\n  #{processed_file}"
+    $logger.info "  moving (orig->processed)\n  #{@origional_file} ->\n  #{processed_file}"
     FileUtils.mkdir_p(File.dirname(processed_file))
     FileUtils.mv @origional_file, processed_file
   end
@@ -157,15 +160,17 @@ def squish_path(path)
   files_processed = 0
   previous_video = nil
   files.each do |file|
+    $logger.info "*"*80
     video = TranscodableFile.new(file, path)
     if video.video?
       if !video.already_being_processed?
         video.transcode
       else
-        $logger.info "skipping #{file} because it's being worked by another process"  
+        next
       end
     else
-      $logger.info "skipping #{file} because file extension says it's not a video"
+      $logger.info "  skipping #{file} because file extension says it's not a video"
+      next
     end
 
     previous_video.move_origional_file if previous_video
