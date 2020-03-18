@@ -1,5 +1,14 @@
 # batch-process-videos
 
+## Installation
+
+    brew install handbrake
+    brew install ffmpeg
+    brew install mkvtoolnix
+    brew install mp4v2
+    bundle install
+
+  - Copy example_config.yml -> config.yml and modify as needed
 
 ## process.rb
 

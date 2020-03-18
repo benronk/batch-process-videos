@@ -1,39 +1,39 @@
+#!/usr/bin/env ruby
+
 require 'json'
 require 'logger'
 require 'filesize'
 require 'fileutils'
 require 'pp'
 require 'shellwords'
+require 'yaml'
+require 'pry'
 
-$EXCLUDED_DIRS = ['/deal.with.these', '/raw', '/woodworking', '/paw patrol', '/wild.kratts', '/word world'].freeze
 $PROCESS_FILE_TAGS = ['processme', 'processme1080', 'processme720', 'processmehw1080', 'processmehw720'].freeze
-$VIDEO_EXTENSIONS = ['.mkv', '.mp4', '.m4v', '.divx', '.mpg', '.ts'].freeze
+$config = YAML.load_file("config.yml")
 
-$logger = Logger.new('logs/process.log', 'daily')
+FileUtils.mkdir_p($config["log_loc"])
+$logger = Logger.new(File.join($config["log_loc"], "process.log"), 'daily')
+
 $total_space_reduction = 0
-
-@paths = [
-          '/Volumes/storage/videos/sports',
-          '/Volumes/storage/videos/movies',
-          '/Volumes/storage/videos/tv.shows/'
-        ]
 
 def get_files (path)
   Dir[ File.join(path, '**', '*') ]
     .reject { |f| File.directory? f}
-    .reject { |f| $EXCLUDED_DIRS.any? { |p| File.dirname(f).downcase.include? p.downcase } }
+    .reject { |f| ($config["excluded_dirs"] || []).any? { |p| File.dirname(f).downcase.include? p.downcase } }
     .select { |f| $PROCESS_FILE_TAGS.any? { |p| File.basename(f).downcase.include? p.downcase } }
 end
 
 class TranscodableFile
-  def initialize(file)
+  def initialize(file, path)
     @base_file = file
+    @base_path = path
 
     # TODO if !File.file?(@base_file) raise stink
   end
 
   def is_video
-    File.file?(@base_file) && $VIDEO_EXTENSIONS.include?(File.extname(@base_file))
+    File.file?(@base_file) && $config["video_extensions"].include?(File.extname(@base_file))
   end
 
   def process_tag
@@ -48,7 +48,9 @@ class TranscodableFile
 
   # Remove the process tag and change path to videos/processed
   def moveto_file
-    @base_file.sub('.'+process_tag, '').sub('videos', 'videos/processed')
+    last_dir_in_path = Pathname(@base_path).each_filename.to_a.last
+    file_wo_path = @base_file.sub('.'+process_tag, '').sub(@base_path, '')
+    File.join($config["processed_loc"], last_dir_in_path, file_wo_path)
   end
 
   def transcode
@@ -80,13 +82,13 @@ class TranscodableFile
   def transcode_video
     case process_tag
     when 'processme1080'
-      %x(transcode-video --no-log --target small --output '#{Shellwords.escape(transcode_file)}' '#{Shellwords.escape(@base_file)}')
+      system("transcode-video --no-log --target small --output '#{Shellwords.escape(transcode_file)}' '#{Shellwords.escape(@base_file)}'")
     when 'processme720'
-      %x(transcode-video --no-log --720p --target small --output '#{Shellwords.escape(transcode_file)}' '#{Shellwords.escape(@base_file)}')
+      system("transcode-video --no-log --720p --target small --output '#{Shellwords.escape(transcode_file)}' '#{Shellwords.escape(@base_file)}'")
     when 'processmehw1080'
-      %x(transcode-video --no-log --encoder vt_h264 --target small --output '#{Shellwords.escape(transcode_file)}' '#{Shellwords.escape(@base_file)}')
+      system("transcode-video --no-log --encoder vt_h264 --target small --output '#{Shellwords.escape(transcode_file)}' '#{Shellwords.escape(@base_file)}'")
     when 'processmehw720', 'processme'
-      %x(transcode-video --no-log --encoder vt_h264 --720p --target small --output #{Shellwords.escape(transcode_file)} #{Shellwords.escape(@base_file)})
+      system("transcode-video --no-log --encoder vt_h264 --720p --target small --output #{Shellwords.escape(transcode_file)} #{Shellwords.escape(@base_file)}")
     end
   end
 
@@ -103,22 +105,22 @@ class TranscodableFile
       return
     end
 
-    folder = File.dirname(moveto_file)
+    FileUtils.mkdir_p(File.dirname(moveto_file))
 
-    if !Dir.exist? folder
-      $logger.info "move to folder doesn't exist, creating: #{folder}"
-      FileUtils.mkdir_p folder
-    end
-
+    $logger.info "moving #{@base_file} -> #{moveto_file}"
     FileUtils.mv @base_file, moveto_file
   end
 end
 
-def process_files(files)
+def squish_path(path)
+  files = get_files(path)
+  $logger.info "#{files.count} files to process"
+  $logger.info "#{files.pretty_inspect}"
+
   i = files.count
   j = 0 # files processed
   files.each do |file|
-    video = TranscodableFile.new(file)
+    video = TranscodableFile.new(file, path)
     if video.is_video
       video.transcode
     else
@@ -129,7 +131,7 @@ def process_files(files)
 
     avg_space_saved = $total_space_reduction / j
     # $logger.info "#{j} files processed, #{i - j} files left, #{Filesize.from(((i - j) * avg_space_saved).to_s + " b").pretty} estimated space to save"
-    $logger.info "#{j} files processed, #{i - j} files left"
+    $logger.info "#{j} files processed, #{i - j} files left -> total space reduction: #{$total_space_reduction.pretty}"
     
   end
 end
@@ -137,15 +139,11 @@ end
 #
 # start
 #
-
-@paths.each do |path|
+$config["squish_paths"].each do |path|
   $logger.info "START path: #{path}"
   p "#{path}"
   if Dir.exist?(path)
-    files = get_files(path)
-    $logger.info "#{files.count} files to process"
-    $logger.info "#{files.pretty_inspect}"
-    process_files files
+    squish_path(path)
   else
     $logger.error "path is not a dir: #{path}"
   end
