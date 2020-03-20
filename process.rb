@@ -15,7 +15,7 @@ $config = YAML.load_file("config.yml")
 FileUtils.mkdir_p($config["log_loc"])
 $logger = Logger.new(File.join($config["log_loc"], "process.log"), 'daily')
 
-$total_space_reduction = 0
+$total_space_reduction = Filesize.from("0")
 
 def get_files (path)
   Dir[ File.join(path, '**', '*') ]
@@ -26,89 +26,133 @@ end
 
 class TranscodableFile
   def initialize(file, path)
-    @base_file = file
-    @base_path = path
+    @origional_file = file
+    @origional_path = path
 
-    # TODO if !File.file?(@base_file) raise stink
+    # TODO if !File.file?(@origional_file) raise stink
   end
 
-  def is_video
-    File.file?(@base_file) && $config["video_extensions"].include?(File.extname(@base_file))
+  def video?
+    File.file?(@origional_file) && $config["video_extensions"].include?(File.extname(@origional_file))
+  end
+
+  def recently_modified?(file, seconds_ago=30)
+    modified_seconds_ago = Time.now - File.stat(file).mtime
+    modified_seconds_ago < seconds_ago
   end
 
   def process_tag
-    $PROCESS_FILE_TAGS.select { |n| File.basename(@base_file).downcase.include? '.'+n.downcase+'.'} [0]
+    $PROCESS_FILE_TAGS.select { |n| File.basename(@origional_file).downcase.include? '.'+n.downcase+'.'} [0]
+  end
+
+  # return the name of the file while being worked
+  def temp_file
+    File.join($config["processed_loc"], File.basename(@origional_file).sub('.'+process_tag, '').sub(File.extname(@origional_file), '.mkv'))
   end
 
   # Return the name of the future transcoded file. 
   # So an mkv minus the process_tag
-  def transcode_file
-    @base_file.sub('.'+process_tag, '').sub(File.extname(@base_file), '.mkv')
+  def destination_file
+    @origional_file.sub('.'+process_tag, '').sub(File.extname(@origional_file), '.mkv')
   end
 
-  # Remove the process tag and change path to videos/processed
-  def moveto_file
-    last_dir_in_path = Pathname(@base_path).each_filename.to_a.last
-    file_wo_path = @base_file.sub('.'+process_tag, '').sub(@base_path, '')
+  # Remove the process tag from origional file 
+  # and change path to processed location
+  def processed_file
+    last_dir_in_path = Pathname(@origional_path).each_filename.to_a.last
+    file_wo_path = @origional_file.sub('.'+process_tag, '').sub(@origional_path, '')
     File.join($config["processed_loc"], last_dir_in_path, file_wo_path)
   end
 
   def transcode
-    $logger.info "transcode start: #{File.basename(@base_file)}"
+    $logger.info "transcode start: #{File.basename(@origional_file)}"
     start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-
-    delete_transcode_file
 
     transcode_video
 
-    if !File.exist? transcode_file
-      $logger.error "failed transcode for some reason: #{@base_file}"
-      $logger.error "run this command to find out why it failed:: transcode-video -vv --no-log --encoder vt_h264 --target small --output #{transcode_file} #{@base_file}"
+    if !File.exist? temp_file
+      $logger.error "failed transcode for some reason: #{@origional_file}"
+      $logger.error "run this command to find out why it failed:: transcode-video -vv --no-log --encoder vt_h264 --target small --output #{temp_file} #{@origional_file}"
     else
       finish = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      start_size = Filesize.from(File.size(@base_file).to_s + " b")
-      finish_size = Filesize.from(File.size(transcode_file).to_s + " b")
+      start_size = Filesize.from(File.size(@origional_file).to_s + " b")
+      finish_size = Filesize.from(File.size(temp_file).to_s + " b")
       smaller_by = start_size - finish_size
       elapsed_minutes = ((finish - start)/60).ceil
       $total_space_reduction += smaller_by
 
+      move_temp_to_destination
       $logger.info "transcode finished - time: #{elapsed_minutes} minutes - #{start_size.pretty} -> #{finish_size.pretty} - smaller by: #{smaller_by.pretty} - total space reduced: #{$total_space_reduction.pretty}"
-      puts "Completed #{File.basename(@base_file)} in #{elapsed_minutes} minutes, #{finish_size.pretty}, #{smaller_by.pretty} smaller"
+      puts "Completed #{File.basename(@origional_file)} in #{elapsed_minutes} minutes, #{finish_size.pretty}, #{smaller_by.pretty} smaller"
   
-      move_base_file
     end
   end
 
   def transcode_video
+    source = Shellwords.escape(@origional_file)
+    destination = Shellwords.escape(temp_file)
+    FileUtils.mkdir_p(File.dirname(temp_file))
     case process_tag
     when 'processme1080'
-      system("transcode-video --no-log --target small --output '#{Shellwords.escape(transcode_file)}' '#{Shellwords.escape(@base_file)}'")
+      system("transcode-video --no-log --target small --output '#{destination}' '#{source}'")
     when 'processme720'
-      system("transcode-video --no-log --720p --target small --output '#{Shellwords.escape(transcode_file)}' '#{Shellwords.escape(@base_file)}'")
+      system("transcode-video --no-log --720p --target small --output '#{destination}' '#{source}'")
     when 'processmehw1080'
-      system("transcode-video --no-log --encoder vt_h264 --target small --output '#{Shellwords.escape(transcode_file)}' '#{Shellwords.escape(@base_file)}'")
+      system("transcode-video --no-log --encoder vt_h264 --target small --output '#{destination}' '#{source}'")
     when 'processmehw720', 'processme'
-      system("transcode-video --no-log --encoder vt_h264 --720p --target small --output #{Shellwords.escape(transcode_file)} #{Shellwords.escape(@base_file)}")
+      system("transcode-video --no-log --encoder vt_h264 --720p --target small --output #{destination} #{source}")
     end
   end
 
-  def delete_transcode_file
-    if File.exist? transcode_file
-      $logger.info "transcode file already exists. deleting file #{transcode_file}"
-      File.delete transcode_file
+  # see if temp file exists
+  # if it's changing size then skip this video as another process is doing the same thing
+  # otherwise assume it's left over and delete it
+  def already_being_processed?
+    # if origional exists and destination has existed for 30s+
+    # assume a previous run didn't get around to cleaning up the file
+    if(File.exist?(@origional_file) && File.exist?(destination_file) && !recently_modified?(destination_file))
+      $logger.info "Found origional and transcoded file; moving origional"
+      move_origional_file
+      return true
+    end
+
+    if File.exist? temp_file
+      # if file has been modified in the last 30 seconds consider it in flight by another
+      if recently_modified?(temp_file)
+        $logger.info "  temp file modified recently (maybe by another process?) so skipping #{temp_file}"
+        return true
+      else
+        $logger.info "  temp file is old, deleting #{temp_file}"
+        File.delete temp_file
+      end
+    end
+    false
+  end
+
+  def delete_temp_file
+    if File.exist? temp_file
+      $logger.info "  temp file already exists, deleting #{temp_file}"
+      File.delete temp_file
     end
   end
 
-  def move_base_file
-    if !File.exist? transcode_file
+  # move temp_file -> destination_file
+  def move_temp_to_destination
+    if !File.exist? temp_file
       $logger.info "no moving, transcode didn't complete"
       return
     end
+    $logger.info "  moving (temp->destination)\n  #{temp_file} ->\n  #{destination_file}"
+    FileUtils.mv temp_file, destination_file
+  end
 
-    FileUtils.mkdir_p(File.dirname(moveto_file))
-
-    $logger.info "moving #{@base_file} -> #{moveto_file}"
-    FileUtils.mv @base_file, moveto_file
+  # move origional_file -> processed_file
+  def move_origional_file
+    if File.exist? @origional_file
+      $logger.info "  moving previous (orig->processed)\n  #{@origional_file} ->\n  #{processed_file}"
+      FileUtils.mkdir_p(File.dirname(processed_file))
+      FileUtils.mv @origional_file, processed_file
+    end
   end
 end
 
@@ -117,22 +161,39 @@ def squish_path(path)
   $logger.info "#{files.count} files to process"
   $logger.info "#{files.pretty_inspect}"
 
-  i = files.count
-  j = 0 # files processed
+  total_files = files.count
+  files_processed = 0
+  previous_video = nil
   files.each do |file|
+    $logger.info "*"*80
     video = TranscodableFile.new(file, path)
-    if video.is_video
-      video.transcode
+    if video.video?
+      if !video.already_being_processed?
+        video.transcode
+      else
+        next
+      end
     else
-      $logger.info "skipping #{file} because file extension says it's not a video"
+      $logger.info "  skipping #{file} because file extension says it's not a video"
+      next
     end
 
-    j = j + 1
+    previous_video.move_origional_file if previous_video
+    previous_video = video
 
-    avg_space_saved = $total_space_reduction / j
-    # $logger.info "#{j} files processed, #{i - j} files left, #{Filesize.from(((i - j) * avg_space_saved).to_s + " b").pretty} estimated space to save"
-    $logger.info "#{j} files processed, #{i - j} files left -> total space reduction: #{$total_space_reduction.pretty}"
+    files_processed = files_processed + 1
+
+    avg_space_saved = $total_space_reduction / files_processed
+    # $logger.info "#{files_processed} files processed, #{total_files - files_processed} files left, #{Filesize.from(((total_files - files_processed) * avg_space_saved).to_s + " b").pretty} estimated space to save"
+    $logger.info "#{files_processed} files processed, #{total_files - files_processed} files left -> total space reduction: #{$total_space_reduction.pretty}"
     
+  end
+
+  if previous_video
+    # logger waiting for Plex to pickup last new file
+    $logger.info "Waiting 30s for Plex to pickup new file"
+    sleep(30)
+    previous_video.move_origional_file 
   end
 end
 
