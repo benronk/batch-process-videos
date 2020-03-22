@@ -64,6 +64,12 @@ class TranscodableFile
     File.join($config["processed_loc"], last_dir_in_path, file_wo_path)
   end
 
+  def failed_file
+    last_dir_in_path = Pathname(@origional_path).each_filename.to_a.last
+    file_wo_path = @origional_file.sub(@origional_path, '')
+    File.join($config["failed_loc"], last_dir_in_path, file_wo_path)
+  end
+
   def transcode
     $logger.info "transcode start: #{File.basename(@origional_file)}"
     start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
@@ -73,6 +79,7 @@ class TranscodableFile
     if !File.exist? temp_file
       $logger.error "failed transcode for some reason: #{@origional_file}"
       $logger.error "run this command to find out why it failed:: transcode-video -vv --no-log --encoder vt_h264 --target small --output #{temp_file} #{@origional_file}"
+      move_origional_to_failed
     else
       finish = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       start_size = Filesize.from(File.size(@origional_file).to_s + " b")
@@ -152,6 +159,14 @@ class TranscodableFile
       $logger.info "  moving previous (orig->processed)\n  #{@origional_file} ->\n  #{processed_file}"
       FileUtils.mkdir_p(File.dirname(processed_file))
       FileUtils.mv @origional_file, processed_file
+    end
+  end
+
+  def move_origional_to_failed
+    if File.exist? @origional_file
+      $logger.info "  moving failed file (orig->failed)\n  #{@origional_file} ->\n  #{failed_file}"
+      FileUtils.mkdir_p(File.dirname(failed_file))
+      FileUtils.mv @origional_file, failed_file
     end
   end
 end
