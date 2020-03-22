@@ -13,7 +13,7 @@ $PROCESS_FILE_TAGS = ['processme', 'processme1080', 'processme720', 'processmehw
 $config = YAML.load_file("config.yml")
 
 FileUtils.mkdir_p($config["log_loc"])
-$logger = Logger.new(File.join($config["log_loc"], "process.log"), 'daily')
+$logger = Logger.new(File.join($config["log_loc"], "process.log"), 10, 1024000)
 
 $total_space_reduction = Filesize.from("0")
 
@@ -216,6 +216,7 @@ end
 # start
 #
 $config["squish_paths"].each do |path|
+  $logger.info "*"*80
   $logger.info "START path: #{path}"
   p "#{path}"
   if Dir.exist?(path)
